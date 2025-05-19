@@ -23,13 +23,13 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
       fail-fast: false
-    
+
     steps:
     - uses: actions/checkout@v4
-      
+
     - name: Install Fish Shell
       uses: fish-actions/install-fish@v1
-    
+
     - name: Install Dependencies
       run: |
         if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
@@ -40,7 +40,7 @@ jobs:
         fi
         gpg --version
         jq --version
-        
+
     - name: Set up GPG key for testing
       run: |
         # Create test GPG key for CI environment
@@ -57,40 +57,40 @@ jobs:
         EOF
         gpg --batch --generate-key key_config
         gpg --list-keys
-        
+
     - name: Create test password store for import testing
       run: |
         # Create basic password-store structure with test data
         mkdir -p ~/.password-store/test
         mkdir -p ~/.password-store/email
         mkdir -p ~/.password-store/web/{social,banking}
-        
+
         # Create sample password files
         echo "password123" | gpg --recipient "CI Test" --encrypt > ~/.password-store/test/example.gpg
         echo "email-password" | gpg --recipient "CI Test" --encrypt > ~/.password-store/email/gmail.gpg
         echo "twitter-pass" | gpg --recipient "CI Test" --encrypt > ~/.password-store/web/social/twitter.gpg
         echo "bank-pass" | gpg --recipient "CI Test" --encrypt > ~/.password-store/web/banking/chase.gpg
-        
+
         # Add metadata to some files (unencrypted for test verification)
         echo "email-password" > ~/.password-store/email/gmail.txt
         echo "username: test@gmail.com" >> ~/.password-store/email/gmail.txt
         echo "url: https://gmail.com" >> ~/.password-store/email/gmail.txt
-        
+
         echo "twitter-pass" > ~/.password-store/web/social/twitter.txt
         echo "username: @testuser" >> ~/.password-store/web/social/twitter.txt
         echo "url: https://twitter.com" >> ~/.password-store/web/social/twitter.txt
-        
+
         # Verify structure
         find ~/.password-store -type f | sort
-        
+
     - name: Install Fisher and fish-pwstore
       run: |
         fish -c "curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install $GITHUB_WORKSPACE"
-        
+
     - name: Run tests
       run: |
         fish -c "set -x CI true; cd $GITHUB_WORKSPACE && ./tests/run_tests.fish"
-        
+
     - name: Test basic pw functionality
       run: |
         fish -c "set -x CI true; pw --version"
@@ -98,14 +98,14 @@ jobs:
         fish -c "set -x CI true; pw add test_password --username=user@example.com --url=https://example.com \"Test password from CI\""
         fish -c "set -x CI true; pw ls"
         fish -c "set -x CI true; pw show test_password"
-        
+
     - name: Test pass import functionality
       run: |
         fish -c "set -x CI true; pw import --from-pass ~/.password-store"
         fish -c "set -x CI true; pw ls"
         fish -c "set -x CI true; pw show email/gmail"
         fish -c "set -x CI true; pw show web/social/twitter"
-        
+
   syntax-check:
     runs-on: ubuntu-latest
     steps:
@@ -118,4 +118,44 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: fish-actions/install-fish@v1
+      - name: Check formatting manually
+        run: |
+          echo "Checking all Fish files for proper formatting..."
+          find_result=0
+          for file in $(find . -name "*.fish" -type f); do
+            if ! fish_indent -c "$file"; then
+              echo "::error file=$file::$file is not properly formatted"
+              find_result=1
+            fi
+          done
+
+          if [ $find_result -eq 1 ]; then
+            echo "::error::Some files are not properly formatted. Run 'fish_indent -w' on them."
+            exit 1
+          else
+            echo "All files are properly formatted!"
+          fi
       - uses: fish-actions/format-check@v1
+
+  auto-format:
+    runs-on: ubuntu-latest
+    needs: [format-check]
+    # Only run this job if format-check fails
+    if: ${{ github.event_name == 'pull_request' && failure() && needs.format-check.result == 'failure' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: fish-actions/install-fish@v1
+      - name: Format Fish files
+        run: |
+          echo "Formatting Fish files in the repository"
+          find . -name "*.fish" -type f -exec fish_indent -w {} \;
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "style: auto-format Fish files"
+          commit_user_name: "GitHub Actions"
+          commit_user_email: "actions@github.com"
+          commit_author: "GitHub Actions <actions@github.com>"
