@@ -459,3 +459,4 @@ function _pwstore_import_from_pass
 
         echo "Import complete: $imported passwords imported, $failed failed"
     end
+end
