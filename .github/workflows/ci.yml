@@ -34,12 +34,14 @@ jobs:
       run: |
         if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
           sudo apt-get update
-          sudo apt-get install -y gnupg jq
+          sudo apt-get install -y gnupg jq pass
         else
-          brew install gnupg jq
+          brew install gnupg jq pass
         fi
         gpg --version
         jq --version
+        echo "Pass version:"
+        pass --version || echo "Pass not found"
 
     - name: Set up GPG key for testing
       run: |
@@ -65,11 +67,19 @@ jobs:
         mkdir -p ~/.password-store/email
         mkdir -p ~/.password-store/web/{social,banking}
 
-        # Create sample password files
-        echo "password123" | gpg --recipient "CI Test" --encrypt > ~/.password-store/test/example.gpg
-        echo "email-password" | gpg --recipient "CI Test" --encrypt > ~/.password-store/email/gmail.gpg
-        echo "twitter-pass" | gpg --recipient "CI Test" --encrypt > ~/.password-store/web/social/twitter.gpg
-        echo "bank-pass" | gpg --recipient "CI Test" --encrypt > ~/.password-store/web/banking/chase.gpg
+        # Get GPG key ID for CI Test
+        gpg_key_id=$(gpg --list-keys --with-colons "CI Test" | grep "^pub" | cut -d: -f5)
+        echo "Using GPG key ID: $gpg_key_id for encryption"
+
+        # Create sample password files - use --trust-model always to avoid trust issues
+        echo "password123" | gpg --trust-model always --recipient "CI Test" --encrypt -o ~/.password-store/test/example.gpg
+        echo "email-password" | gpg --trust-model always --recipient "CI Test" --encrypt -o ~/.password-store/email/gmail.gpg
+        echo "twitter-pass" | gpg --trust-model always --recipient "CI Test" --encrypt -o ~/.password-store/web/social/twitter.gpg
+        echo "bank-pass" | gpg --trust-model always --recipient "CI Test" --encrypt -o ~/.password-store/web/banking/chase.gpg
+
+        # Test decryption directly to verify encryption worked
+        echo "Testing direct decryption of a file:"
+        gpg --batch --decrypt ~/.password-store/test/example.gpg || echo "Decryption test failed"
 
         # Add metadata to some files (unencrypted for test verification)
         echo "email-password" > ~/.password-store/email/gmail.txt
@@ -145,11 +155,26 @@ jobs:
         # Export GPG_TTY to avoid "Inappropriate ioctl for device" errors with GPG
         export GPG_TTY=$(tty)
 
+        # Make sure GPG agent is running
+        gpg-agent --daemon
+
+        # Debug GPG keys and trust
+        echo "==== GPG Keys ===="
+        gpg --list-keys
+        gpg --list-secret-keys
+
+        # Verify we can decrypt files directly
+        echo "==== Testing direct GPG decryption ===="
+        gpg --decrypt ~/.password-store/test/example.gpg || echo "Direct decryption failed"
+
         # Make sure we're still using the right GPG recipient
         fish -c "set -U pwstore_gpg_recipient 'CI Test'"
 
-        # Import from pass store
-        fish -c "set -x CI true; pw import-pass ~/.password-store"
+        # Check pwstore environment
+        fish -c "echo \"Using pwstore_gpg_recipient: \$pwstore_gpg_recipient\""
+
+        # Import from pass store with verbose flag for debugging
+        fish -c "set -x CI true; pw import-pass ~/.password-store --verbose"
 
         # List all entries and show some imported passwords
         fish -c "set -x CI true; pw ls"

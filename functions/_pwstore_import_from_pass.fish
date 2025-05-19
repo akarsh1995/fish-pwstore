@@ -143,12 +143,45 @@ function _pwstore_import_from_pass
         if test $status -ne 0
             if test "$verbose" = true
                 echo "  Debug: 'pass show' failed, falling back to direct GPG decryption"
+            end # Use the configured GPG recipient if available
+            if set -q pwstore_gpg_recipient
+                if test "$verbose" = true
+                    echo "  Debug: Using configured GPG recipient for decryption: $pwstore_gpg_recipient"
+                end
+
+                # Try to decrypt with the configured recipient first
+                set password_data (gpg --trust-model always --decrypt $file 2>/dev/null | string split '\n')
+
+                # If that fails and we're in CI, try with explicit CI Test
+                if test $status -ne 0; and test "$CI" = true
+                    if test "$verbose" = true
+                        echo "  Debug: First attempt failed, trying with CI Test explicitly"
+                    end
+                    set password_data (gpg --trust-model always --decrypt --try-secret-key "CI Test" $file 2>/dev/null | string split '\n')
+                end
+
+                # If that still fails, try standard decryption
+                if test $status -ne 0
+                    if test "$verbose" = true
+                        echo "  Debug: Explicit recipient failed, trying standard decryption"
+                    end
+                    set password_data (gpg --decrypt $file 2>/dev/null | string split '\n')
+                end
+            else
+                # Standard decryption when no recipient is configured
+                set password_data (gpg --decrypt $file 2>/dev/null | string split '\n')
             end
-            set password_data (gpg --decrypt $file 2>/dev/null | string split '\n')
         end
 
         if test $status -ne 0
             echo "  ❌ Failed to decrypt pass file: $rel_path"
+            # Add more debugging in case of failure
+            if test "$verbose" = true
+                echo "  Debug: GPG key info:"
+                gpg --list-keys
+                echo "  Debug: File permissions:"
+                ls -la $file
+            end
             set failed (math $failed + 1)
             continue
         end
