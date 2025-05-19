@@ -85,7 +85,7 @@ jobs:
         
     - name: Install Fisher and fish-pwstore
       run: |
-        fish -c "curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install ~/$(basename $GITHUB_WORKSPACE)"
+        fish -c "curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install $GITHUB_WORKSPACE"
         
     - name: Run tests
       run: |
