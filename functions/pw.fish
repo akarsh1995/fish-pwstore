@@ -20,7 +20,7 @@ function pw
         echo "  import-pass [DIR] [--verbose] - Import passwords from standard pass"
         # Remove the obsolete import-pass-verbose command
         echo "  migrate                     - Migrate passwords from old location"
-        echo "  version                     - Show pwstore version"
+        echo "  version, --version, -v      - Show pwstore version"
         echo "  help                        - Show this help message"
         return 0
     end
@@ -32,6 +32,9 @@ function pw
     switch $command
         case help
             pw
+
+        case --version -v
+            echo "fish-pwstore v1.5.3"
 
         case add
             if test (count $args) -lt 1

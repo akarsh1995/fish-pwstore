@@ -93,6 +93,7 @@ jobs:
 
     - name: Test basic pw functionality
       run: |
+        fish -c "set -x CI true; pw version"
         fish -c "set -x CI true; pw --version"
         fish -c "set -x CI true; pw help"
         fish -c "set -x CI true; pw add test_password --username=user@example.com --url=https://example.com \"Test password from CI\""
