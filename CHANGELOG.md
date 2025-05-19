@@ -1,15 +1,19 @@
 # Changelog
 
-## v1.5.3 - 2025-05-18
+## v1.5.3 - 2025-05-19
 
 ### Fixed
 - Fixed path handling when importing nested directories from pass
 - Implemented `realpath`/`grealpath` to reliably determine relative paths between password files and the pass directory
+- Added regex escaping for paths with special characters to ensure proper path resolution
 - Removed hardcoded path references for better compatibility with all pass directories
 - Improved fallback to direct GPG decryption when pass command fails
 - Enhanced verbose mode with additional debugging information
 - Added proper handling of special characters in paths
-- Fixed local variable scope issue with `pass_dir`
+- Fixed local variable scope issue with `pass_dir` variable
+
+### Added
+- Added comprehensive tests in the tests directory for path resolution and pass integration
 
 ## v1.5.2 - 2025-05-18
 

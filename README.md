@@ -18,7 +18,7 @@ A secure GPG-based password manager for the Fish shell.
 Install with [Fisher](https://github.com/jorgebucaran/fisher):
 
 ```fish
-fisher install akarshjain/fish-pwstore
+fisher install akarsh1995/fish-pwstore
 ```
 
 ## Requirements
@@ -222,9 +222,15 @@ For issues with importing passwords from the standard pass password manager:
    less PASS_IMPORT_GUIDE.md
    ```
 
-2. Run the pass import test script to verify functionality:
+2. Run the test suite to verify functionality:
    ```fish
-   ./test_pass_import_nested.fish
+   fish ./tests/run_tests.fish
+   ```
+
+   Or run individual test scripts:
+   ```fish
+   fish ./tests/test_realpath_import.fish
+   fish ./tests/test_pass_import_integration.fish
    ```
 
 3. Use verbose mode for more information:
@@ -238,4 +244,4 @@ For issues with importing passwords from the standard pass password manager:
 
 ## Author
 
-[Akarsh Jain](https://github.com/akarshjain)
+[Akarsh Jain](https://github.com/akarsh1995)

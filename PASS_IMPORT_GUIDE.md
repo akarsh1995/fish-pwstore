@@ -19,7 +19,7 @@ pw import-pass --verbose
 
 fish-pwstore supports importing passwords from nested directories in pass. The hierarchical structure is preserved during import.
 
-The import process uses `realpath` (or `grealpath` as a fallback) to reliably determine the relative path between your password files and the pass directory, ensuring correct path resolution regardless of your directory structure or symbolic links.
+The import process uses `realpath` (or `grealpath` as a fallback) to reliably determine the relative path between your password files and the pass directory, ensuring correct path resolution regardless of your directory structure or symbolic links. Special characters in paths are properly handled using regex escaping to prevent errors during path manipulation.
 
 For example, if you have passwords stored in pass as:
 ```

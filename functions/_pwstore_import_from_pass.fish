@@ -97,7 +97,9 @@ function _pwstore_import_from_pass
         set -l real_file (realpath "$file" 2>/dev/null; or command grealpath "$file" 2>/dev/null; or echo "$file")
         
         # Extract the relative path from the pass directory
-        set -l rel_path (string replace -r "^$real_pass_dir/" "" "$real_file")
+        # Escape special characters in the directory path for regex
+        set -l escaped_dir (string escape --style=regex "$real_pass_dir")
+        set -l rel_path (string replace -r "^$escaped_dir/" "" "$real_file")
         
         # Remove the .gpg extension for our password store name
         set -l name (string replace -r "\.gpg\$" "" $rel_path)

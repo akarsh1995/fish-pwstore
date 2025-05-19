@@ -1,5 +1,5 @@
 # fish-pwstore - A secure GPG-based password manager for the Fish shell
-# Repository: https://github.com/akarshjain/fish-pwstore
+# Repository: https://github.com/akarsh1995/fish-pwstore
 
 # Only load in interactive sessions or CI environments (speeds up shell startup)
 if not status is-interactive && test "$CI" != true
@@ -76,8 +76,8 @@ function _pwstore_uninstall --on-event pwstore_uninstall
     echo "You can manually remove this directory if you wish to delete all your passwords."
     
     # Clean up functions and completions
-    functions -e _pwstore_init _pwstore_install _pwstore_update _pwstore_uninstall
-    
+    functions --erase (functions --all | string match --entire -r '^_?pwstore')
+
     # Remove any universal variables we've set (keeping passwords intact)
     set -e pwstore_password_length
     set -e pwstore_clipboard_time
