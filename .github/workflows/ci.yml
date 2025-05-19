@@ -110,6 +110,12 @@ jobs:
       run: |
         fish -c "curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install $GITHUB_WORKSPACE"
 
+    - name: Make test scripts executable
+      run: |
+        echo "Making all test scripts executable"
+        chmod +x $GITHUB_WORKSPACE/tests/*.fish
+        ls -la $GITHUB_WORKSPACE/tests/*.fish  # Verify permissions
+
     - name: Setup password store configuration
       run: |
         # Create directory for pwstore and set correct permissions
@@ -138,13 +144,22 @@ jobs:
         # Run the GPG environment test script
         fish -c "set -x CI true; cd $GITHUB_WORKSPACE && ./tests/test_gpg_env.fish"
 
+    - name: Check path resolution commands
+      run: |
+        echo "Checking available path resolution commands in CI environment"
+        echo "* realpath: $(which realpath 2>/dev/null || echo 'not available')"
+        echo "* grealpath: $(which grealpath 2>/dev/null || echo 'not available')"
+        echo "* python3: $(which python3 2>/dev/null || echo 'not available')"
+        echo "* python: $(which python 2>/dev/null || echo 'not available')"
+        echo "* readlink: $(which readlink 2>/dev/null || echo 'not available')"
+
     - name: Run path resolution tests first
       run: |
         export GPG_TTY=$(tty)
         echo "Testing path resolution methods first to ensure they work in CI environment"
-        fish -c "set -x CI true; cd $GITHUB_WORKSPACE && ./tests/test_path_resolution.fish"
-        fish -c "set -x CI true; cd $GITHUB_WORKSPACE && ./tests/test_ci_path_fallbacks.fish"
-        fish -c "set -x CI true; cd $GITHUB_WORKSPACE && ./tests/test_advanced_path_resolution.fish"
+        fish -c "set -x CI true; set -x DEBUG true; cd $GITHUB_WORKSPACE && ./tests/test_path_resolution.fish"
+        fish -c "set -x CI true; set -x DEBUG true; cd $GITHUB_WORKSPACE && ./tests/test_ci_path_fallbacks.fish"
+        fish -c "set -x CI true; set -x DEBUG true; cd $GITHUB_WORKSPACE && ./tests/test_advanced_path_resolution.fish"
 
     - name: Run all tests
       run: |
