@@ -1,24 +1,21 @@
-# Function to add/update a password in the password store
-function pwstore_add
+# Internal function to add/update a password in the password store
+function _pwstore_add
     # Define paths for password store
-    set -l store_path $XDG_CONFIG_HOME/fish/secure/passwords
-    set -l registry_path $store_path/registry.json.gpg
+    set -l registry_path $pwstore_path/registry.json.gpg
     
     # Check arguments
     if test (count $argv) -lt 1
-        echo "Usage: pwstore_add NAME [USERNAME] [DESCRIPTION]"
-        echo "       pwstore_add --generate NAME [LENGTH] [USERNAME] [DESCRIPTION]"
-        echo "       Add --username=value to specify the username or email"
-        echo "       Add --url=value to specify the URL"
+        echo "Usage: pw add NAME [--username=VALUE] [--url=VALUE] [DESCRIPTION]"
+        echo "       pw gen NAME [LENGTH] [--username=VALUE] [--url=VALUE] [DESCRIPTION]"
         return 1
     end
     
     # Ensure the directory exists
-    mkdir -p $store_path
+    mkdir -p $pwstore_path
     
     # Check if we should generate a password
     set -l generate false
-    set -l password_length 16
+    set -l password_length $pwstore_password_length  # Use the global setting
     set -l name ""
     set -l password ""
     set -l username ""
@@ -142,14 +139,33 @@ function pwstore_add
     # Get the current timestamp
     set -l timestamp (date "+%Y-%m-%d %H:%M:%S")
     
+    # First check if the GPG recipient is valid
+    if test -z "$pwstore_gpg_recipient"
+        echo "Error: GPG recipient is not set. Please configure pwstore_gpg_recipient."
+        echo "Run ./debug_pwstore_gpg.fish for troubleshooting."
+        return 1
+    end
+
     # Update the JSON registry with the new password
-    echo $json_content | jq --arg name "$name" --arg pass "$password" \
+    set -l json_updated (echo $json_content | jq --arg name "$name" --arg pass "$password" \
        --arg desc "$description" --arg time "$timestamp" --arg user "$username" --arg url "$url" \
-       '.[$name] = {"password": $pass, "username": $user, "url": $url, "description": $desc, "updated": $time}' | \
-       gpg --quiet --yes --recipient (echo "$(whoami) <$(whoami)@$(hostname)>") --encrypt --output $registry_path
+       '.[$name] = {"password": $pass, "username": $user, "url": $url, "description": $desc, "updated": $time}')
     
+    # Check if jq succeeded
     if test $status -ne 0
+        echo "Failed to update JSON data"
+        return 1
+    end
+    
+    # Try to encrypt and save, capturing any error output
+    set -l gpg_output (echo $json_updated | gpg --quiet --yes --recipient "$pwstore_gpg_recipient" --encrypt --output $registry_path 2>&1)
+    set -l gpg_status $status
+    
+    if test $gpg_status -ne 0
         echo "Failed to encrypt password registry"
+        echo "GPG Error: $gpg_output"
+        echo "GPG Recipient: $pwstore_gpg_recipient"
+        echo "Run ./debug_pwstore_gpg.fish for more detailed troubleshooting."
         return 1
     end
     

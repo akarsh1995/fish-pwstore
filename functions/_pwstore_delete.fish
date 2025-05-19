@@ -1,12 +1,11 @@
-# Function to delete a password from the password store
-function pwstore_delete
+# Internal function to delete a password from the password store
+function _pwstore_delete
     # Define paths for password store
-    set -l store_path $XDG_CONFIG_HOME/fish/secure/passwords
-    set -l registry_path $store_path/registry.json.gpg
+    set -l registry_path $pwstore_path/registry.json.gpg
     
     # Check arguments
     if test (count $argv) -lt 1
-        echo "Usage: pwstore_delete NAME [--force]"
+        echo "Usage: pw rm NAME [--force]"
         return 1
     end
     
@@ -52,7 +51,7 @@ function pwstore_delete
     
     # Remove the entry from the registry
     echo $decrypted_content | jq --arg name "$name" 'del(.[$name])' | \
-       gpg --quiet --yes --recipient (echo "$(whoami) <$(whoami)@$(hostname)>") --encrypt --output $registry_path
+       gpg --quiet --yes --recipient "$pwstore_gpg_recipient" --encrypt --output $registry_path
     
     if test $status -ne 0
         echo "Failed to update password registry"

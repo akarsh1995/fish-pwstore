@@ -1,12 +1,11 @@
-# Function to initialize the password store
-function pwstore_init
-    # Define paths for password store
-    set -l store_path $XDG_CONFIG_HOME/fish/secure/passwords
-    
+# Internal function to initialize the password store
+function _pwstore_init
     # Create directory if it doesn't exist
-    mkdir -p $store_path
+    if not test -d $pwstore_path
+        mkdir -p $pwstore_path
+    end
     
-    echo "Password store initialized at: $store_path"
+    echo "Password store initialized at: $pwstore_path"
     echo ""
     echo "Available commands:"
     echo "  pw add NAME [--username=VALUE] [--url=VALUE] [DESC] - Add or update a password (will prompt for password)"
@@ -20,4 +19,9 @@ function pwstore_init
     echo "  pw export PATH                 - Export passwords to a file"
     echo "  pw import PATH                 - Import passwords from a file"
     echo "  pw import-pass [DIR]           - Import passwords from standard pass"
+    echo "  pw migrate                     - Migrate passwords from old location"
+    echo "  pw version                     - Show pwstore version"
+    echo "  pw help                        - Show this help message"
+    
+    return 0
 end
