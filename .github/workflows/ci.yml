@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+    tags-ignore:
+      - v.*
+  pull_request:
+    branches: [ main, master ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+      fail-fast: false
+    
+    steps:
+    - uses: actions/checkout@v4
+      
+    - name: Install Fish Shell
+      uses: fish-actions/install-fish@v1
+    
+    - name: Install Dependencies
+      run: |
+        if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+          sudo apt-get update
+          sudo apt-get install -y gnupg jq
+        else
+          brew install gnupg jq
+        fi
+        gpg --version
+        jq --version
+        
+    - name: Set up GPG key for testing
+      run: |
+        # Create test GPG key for CI environment
+        cat > key_config <<EOF
+        %echo Generating a basic OpenPGP key for testing
+        Key-Type: RSA
+        Key-Length: 2048
+        Name-Real: CI Test
+        Name-Email: ci@example.com
+        Expire-Date: 0
+        %no-protection
+        %commit
+        %echo Done
+        EOF
+        gpg --batch --generate-key key_config
+        gpg --list-keys
+        
+    - name: Create test password store for import testing
+      run: |
+        # Create basic password-store structure with test data
+        mkdir -p ~/.password-store/test
+        mkdir -p ~/.password-store/email
+        mkdir -p ~/.password-store/web/{social,banking}
+        
+        # Create sample password files
+        echo "password123" | gpg --recipient "CI Test" --encrypt > ~/.password-store/test/example.gpg
+        echo "email-password" | gpg --recipient "CI Test" --encrypt > ~/.password-store/email/gmail.gpg
+        echo "twitter-pass" | gpg --recipient "CI Test" --encrypt > ~/.password-store/web/social/twitter.gpg
+        echo "bank-pass" | gpg --recipient "CI Test" --encrypt > ~/.password-store/web/banking/chase.gpg
+        
+        # Add metadata to some files (unencrypted for test verification)
+        echo "email-password" > ~/.password-store/email/gmail.txt
+        echo "username: test@gmail.com" >> ~/.password-store/email/gmail.txt
+        echo "url: https://gmail.com" >> ~/.password-store/email/gmail.txt
+        
+        echo "twitter-pass" > ~/.password-store/web/social/twitter.txt
+        echo "username: @testuser" >> ~/.password-store/web/social/twitter.txt
+        echo "url: https://twitter.com" >> ~/.password-store/web/social/twitter.txt
+        
+        # Verify structure
+        find ~/.password-store -type f | sort
+        
+    - name: Install Fisher and fish-pwstore
+      run: |
+        fish -c "curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install ~/$(basename $GITHUB_WORKSPACE)"
+        
+    - name: Run tests
+      run: |
+        fish -c "set -x CI true; cd $GITHUB_WORKSPACE && ./tests/run_tests.fish"
+        
+    - name: Test basic pw functionality
+      run: |
+        fish -c "set -x CI true; pw --version"
+        fish -c "set -x CI true; pw help"
+        fish -c "set -x CI true; pw add test_password --username=user@example.com --url=https://example.com \"Test password from CI\""
+        fish -c "set -x CI true; pw ls"
+        fish -c "set -x CI true; pw show test_password"
+        
+    - name: Test pass import functionality
+      run: |
+        fish -c "set -x CI true; pw import --from-pass ~/.password-store"
+        fish -c "set -x CI true; pw ls"
+        fish -c "set -x CI true; pw show email/gmail"
+        fish -c "set -x CI true; pw show web/social/twitter"
+        
+  syntax-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: fish-actions/install-fish@v1
+      - uses: fish-actions/syntax-check@v1
+
+  format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: fish-actions/install-fish@v1
+      - uses: fish-actions/format-check@v1
