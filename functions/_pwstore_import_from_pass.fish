@@ -221,14 +221,41 @@ function _pwstore_import_from_pass
                 end
 
                 # Try to decrypt with the configured recipient first
-                set password_data (gpg --batch --yes --trust-model always --decrypt $file 2>/dev/null | string split '\n')
+                if test "$verbose" = true
+                    echo "  Debug: First attempt - trust-model always with configured recipient"
+                end
+
+                # In CI environment with DEBUG set, show more verbose output
+                if test "$CI" = true; and test "$DEBUG" = true; or test "$DEBUG_GPG" = true
+                    echo "  Debug: Running with extra verbose GPG output"
+                    set password_data (gpg --batch --yes --trust-model always --verbose --decrypt $file 2>&1 | string split '\n')
+                    echo "  Debug: GPG exit status: $status"
+                else
+                    set password_data (gpg --batch --yes --trust-model always --decrypt $file 2>/dev/null | string split '\n')
+                end
 
                 # If that fails and we're in CI, try with explicit CI Test
                 if test $status -ne 0; and test "$CI" = true
                     if test "$verbose" = true
                         echo "  Debug: First attempt failed, trying with CI Test explicitly"
                     end
-                    set password_data (gpg --batch --yes --trust-model always --decrypt --try-secret-key "CI Test" $file 2>/dev/null | string split '\n')
+
+                    # Get the key IDs directly to use for decryption
+                    set -l key_ids (gpg --batch --list-keys --with-colons "CI Test" | grep "^pub" | cut -d: -f5)
+                    if test "$verbose" = true
+                        echo "  Debug: Found key IDs for CI Test: $key_ids"
+                    end
+
+                    # Try all found key IDs
+                    for key_id in $key_ids
+                        if test "$verbose" = true
+                            echo "  Debug: Trying explicit key ID: $key_id"
+                        end
+                        set password_data (gpg --batch --yes --trust-model always --recipient $key_id --decrypt $file 2>/dev/null | string split '\n')
+                        if test $status -eq 0
+                            break
+                        end
+                    end
                 end
 
                 # If that still fails, try standard decryption
