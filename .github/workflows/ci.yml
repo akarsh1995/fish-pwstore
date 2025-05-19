@@ -65,8 +65,10 @@ jobs:
         echo "no-tty" >> ~/.gnupg/gpg.conf
         echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
         echo "trust-model always" >> ~/.gnupg/gpg.conf
-        echo "allow-loopback-pinentry" >> ~/.gnupg/gpg.conf
-
+        
+        # Create gpg-agent.conf with appropriate settings
+        echo "allow-loopback-pinentry" > ~/.gnupg/gpg-agent.conf
+        
         # Set permissions for GPG directory and files
         chmod 700 ~/.gnupg
         # Apply permissions to existing files
@@ -101,10 +103,12 @@ jobs:
         # Set ultimate trust for the key
         echo "Setting ultimate trust for the key:"
         echo -e "5\ny\n" | gpg --batch --command-fd 0 --expert --edit-key "CI Test" trust
-
-        # Set as default key in gpg.conf
-        echo "default-key $KEY_FP" >> ~/.gnupg/gpg.conf
-
+        
+        # Set default key short key ID format (last 8 characters of the fingerprint)
+        SHORT_KEY_ID=$(echo $KEY_FP | tail -c 9)
+        echo "Using short key ID: $SHORT_KEY_ID"
+        echo "default-key $SHORT_KEY_ID" >> ~/.gnupg/gpg.conf
+        
         # Verify key and configuration
         echo "GPG Key List:"
         gpg --list-keys
