@@ -109,11 +109,11 @@ jobs:
         echo "username: bankuser" >> /tmp/bank.txt
         echo "url: https://chase.com" >> /tmp/bank.txt
 
-        # Create sample password files - using armor format for text files
-        gpg --batch --yes --trust-model always --recipient "CI Test" --armor --encrypt /tmp/password1.txt -o ~/.password-store/test/example.gpg
-        gpg --batch --yes --trust-model always --recipient "CI Test" --armor --encrypt /tmp/email.txt -o ~/.password-store/email/gmail.gpg
-        gpg --batch --yes --trust-model always --recipient "CI Test" --armor --encrypt /tmp/twitter.txt -o ~/.password-store/web/social/twitter.gpg
-        gpg --batch --yes --trust-model always --recipient "CI Test" --armor --encrypt /tmp/bank.txt -o ~/.password-store/web/banking/chase.gpg
+        # Create sample password files - corrected command syntax for GPG
+        cat /tmp/password1.txt | gpg --batch --yes --trust-model always --recipient "CI Test" --armor --encrypt -o ~/.password-store/test/example.gpg
+        cat /tmp/email.txt | gpg --batch --yes --trust-model always --recipient "CI Test" --armor --encrypt -o ~/.password-store/email/gmail.gpg
+        cat /tmp/twitter.txt | gpg --batch --yes --trust-model always --recipient "CI Test" --armor --encrypt -o ~/.password-store/web/social/twitter.gpg
+        cat /tmp/bank.txt | gpg --batch --yes --trust-model always --recipient "CI Test" --armor --encrypt -o ~/.password-store/web/banking/chase.gpg
 
         # Make the password files readable by the current user
         chmod 600 ~/.password-store/**/*.gpg
