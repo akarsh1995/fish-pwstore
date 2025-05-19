@@ -191,8 +191,9 @@ jobs:
         # Export GPG_TTY to avoid "Inappropriate ioctl for device" errors with GPG
         export GPG_TTY=$(tty)
 
-        # Make sure GPG agent is running
-        gpg-agent --daemon
+        # Check GPG agent status without attempting to start a new one
+        echo "==== GPG Agent Status ===="
+        ps -ef | grep gpg-agent | grep -v grep || echo "No gpg-agent process found"
 
         # Debug GPG keys and trust
         echo "==== GPG Keys ===="
