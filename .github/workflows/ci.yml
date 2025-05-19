@@ -81,28 +81,88 @@ jobs:
         echo "url: https://twitter.com" >> ~/.password-store/web/social/twitter.txt
 
         # Verify structure
-        find ~/.password-store -type f | sort
-
-    - name: Install Fisher and fish-pwstore
+        find ~/.password-store -type f | sort    - name: Install Fisher and fish-pwstore
       run: |
         fish -c "curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install $GITHUB_WORKSPACE"
+
+    - name: Setup password store configuration
+      run: |
+        # Create directory for pwstore and set correct permissions
+        fish -c "mkdir -p ~/.config/fish/secure"
+
+        # Configure pwstore to use the CI Test GPG key
+        gpg_key_id=$(gpg --list-keys --with-colons "CI Test" | grep "^pub" | cut -d: -f5)
+        fish -c "set -Ux pwstore_gpg_recipient $gpg_key_id"
+        fish -c "set -Ux pwstore_path ~/.config/fish/secure/passwords"
+
+        # Initialize the password store directory
+        fish -c "pw init"
 
     - name: Run tests
       run: |
         fish -c "set -x CI true; cd $GITHUB_WORKSPACE && ./tests/run_tests.fish"
 
+    - name: Test GPG Environment
+      run: |
+        # Export GPG_TTY to avoid "Inappropriate ioctl for device" errors with GPG
+        export GPG_TTY=$(tty)
+
+        # Run the GPG environment test script
+        fish -c "set -x CI true; cd $GITHUB_WORKSPACE && ./tests/test_gpg_env.fish"
+
     - name: Test basic pw functionality
       run: |
+        # Export GPG_TTY to avoid "Inappropriate ioctl for device" errors with GPG
+        export GPG_TTY=$(tty)
+
+        # Test version commands
         fish -c "set -x CI true; pw version"
         fish -c "set -x CI true; pw --version"
         fish -c "set -x CI true; pw help"
-        fish -c "set -x CI true; pw add test_password --username=user@example.com --url=https://example.com \"Test password from CI\""
+
+        # Initialize the pwstore with GPG key using the name directly
+        echo "Using GPG key: CI Test"
+
+        # Debug GPG setup
+        echo "==== GPG Keys ===="
+        gpg --list-keys
+
+        # Configure environment for pwstore - use the name directly
+        fish -c "set -U pwstore_gpg_recipient 'CI Test'"
+        fish -c "set -U pwstore_path ~/.config/fish/secure/passwords"
+        fish -c "mkdir -p ~/.config/fish/secure/passwords"
+
+        # Verify the environment variables are set correctly
+        echo "==== PWStore Environment ===="
+        fish -c "echo \"PWStore path: \$pwstore_path\""
+        fish -c "echo \"PWStore GPG recipient: \$pwstore_gpg_recipient\""
+
+        # Test encrypting and decrypting with the CI Test key
+        echo "==== Testing GPG encryption/decryption ===="
+        echo "test_content" > /tmp/test.txt
+        gpg --encrypt --recipient "CI Test" -o /tmp/test.gpg /tmp/test.txt
+        gpg --decrypt /tmp/test.gpg | grep test_content
+
+        # Initialize the pwstore
+        fish -c "set -x CI true; pw init"
+
+        # Now test password operations using --no-prompt flag
+        fish -c "set -x CI true; pw add test_password --no-prompt \"test-password\" --username=user@example.com --url=https://example.com \"Test password from CI\""
         fish -c "set -x CI true; pw ls"
         fish -c "set -x CI true; pw show test_password"
 
     - name: Test pass import functionality
       run: |
-        fish -c "set -x CI true; pw import --from-pass ~/.password-store"
+        # Export GPG_TTY to avoid "Inappropriate ioctl for device" errors with GPG
+        export GPG_TTY=$(tty)
+
+        # Make sure we're still using the right GPG recipient
+        fish -c "set -U pwstore_gpg_recipient 'CI Test'"
+
+        # Import from pass store
+        fish -c "set -x CI true; pw import-pass ~/.password-store"
+
+        # List all entries and show some imported passwords
         fish -c "set -x CI true; pw ls"
         fish -c "set -x CI true; pw show email/gmail"
         fish -c "set -x CI true; pw show web/social/twitter"
