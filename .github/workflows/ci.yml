@@ -34,14 +34,27 @@ jobs:
       run: |
         if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
           sudo apt-get update
-          sudo apt-get install -y gnupg jq pass
+          sudo apt-get install -y gnupg jq pass python3
         else
           brew install gnupg jq pass
         fi
         gpg --version
         jq --version
+        python3 --version || echo "Python 3 not found"
         echo "Pass version:"
         pass --version || echo "Pass not found"
+
+        # Check if realpath/grealpath is available
+        if command -v realpath >/dev/null 2>&1; then
+          echo "realpath is available"
+        else
+          echo "realpath is not available"
+        fi
+        if command -v grealpath >/dev/null 2>&1; then
+          echo "grealpath is available"
+        else
+          echo "grealpath is not available"
+        fi
 
     - name: Set up GPG key for testing
       run: |
@@ -125,7 +138,15 @@ jobs:
         # Run the GPG environment test script
         fish -c "set -x CI true; cd $GITHUB_WORKSPACE && ./tests/test_gpg_env.fish"
 
-    - name: Run tests
+    - name: Run path resolution tests first
+      run: |
+        export GPG_TTY=$(tty)
+        echo "Testing path resolution methods first to ensure they work in CI environment"
+        fish -c "set -x CI true; cd $GITHUB_WORKSPACE && ./tests/test_path_resolution.fish"
+        fish -c "set -x CI true; cd $GITHUB_WORKSPACE && ./tests/test_ci_path_fallbacks.fish"
+        fish -c "set -x CI true; cd $GITHUB_WORKSPACE && ./tests/test_advanced_path_resolution.fish"
+
+    - name: Run all tests
       run: |
         export GPG_TTY=$(tty)
         fish -c "set -x CI true; cd $GITHUB_WORKSPACE && ./tests/run_tests.fish"

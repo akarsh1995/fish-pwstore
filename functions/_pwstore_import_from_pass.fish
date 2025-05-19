@@ -88,13 +88,73 @@ function _pwstore_import_from_pass
             echo "Make sure you're running this command from the fish-pwstore directory."
             return 1
         end
+    end # Source our path utility functions
+    set -l script_dir (dirname (status -f))
+    if test -f "$script_dir/_pwstore_path_utils.fish"
+        source "$script_dir/_pwstore_path_utils.fish"
+    end
+
+    # If we failed to source the utility functions, define them directly for backward compatibility
+    if not functions -q _pwstore_resolve_path
+        function _pwstore_resolve_path
+            set -l path_to_resolve $argv[1]
+            # Use same implementation as in _pwstore_path_utils.fish
+            if command -sq realpath
+                realpath "$path_to_resolve" 2>/dev/null
+                and return 0
+            end
+
+            if command -sq grealpath
+                command grealpath "$path_to_resolve" 2>/dev/null
+                and return 0
+            end
+
+            if type -q python3
+                python3 -c "import os.path; print(os.path.abspath('$path_to_resolve'))" 2>/dev/null
+                and return 0
+            end
+
+            if type -q python
+                python -c "import os.path; print(os.path.abspath('$path_to_resolve'))" 2>/dev/null
+                and return 0
+            end
+
+            if command -sq readlink
+                readlink -f "$path_to_resolve" 2>/dev/null
+                and return 0
+            end
+
+            if test -d "$path_to_resolve"
+                pushd "$path_to_resolve" >/dev/null
+                pwd
+                popd >/dev/null
+                and return 0
+            end
+
+            if test -f "$path_to_resolve"
+                set -l dir_name (dirname "$path_to_resolve")
+                set -l base_name (basename "$path_to_resolve")
+                pushd "$dir_name" >/dev/null
+                echo (pwd)/"$base_name"
+                popd >/dev/null
+                and return 0
+            end
+
+            echo "$path_to_resolve"
+            return 0
+        end
     end
 
     # Find all .gpg files
     for file in (find $pass_dir -name "*.gpg")
-        # Get absolute paths for both the pass directory and the file
-        set -l real_pass_dir (realpath "$pass_dir" 2>/dev/null; or command grealpath "$pass_dir" 2>/dev/null; or echo "$pass_dir")
-        set -l real_file (realpath "$file" 2>/dev/null; or command grealpath "$file" 2>/dev/null; or echo "$file")
+        # Get absolute paths for both the pass directory and the file using our utility function
+        set -l real_pass_dir (_pwstore_resolve_path "$pass_dir")
+        set -l real_file (_pwstore_resolve_path "$file")
+
+        if test "$verbose" = true
+            echo "  Debug: Resolved pass directory path: $real_pass_dir"
+            echo "  Debug: Resolved file path: $real_file"
+        end
 
         # Extract the relative path from the pass directory
         # Escape special characters in the directory path for regex
