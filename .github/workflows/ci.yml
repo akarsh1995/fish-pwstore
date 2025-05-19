@@ -59,6 +59,17 @@ jobs:
     - name: Set up GPG key for testing
       run: |
         # Create test GPG key for CI environment
+        # Configure GPG to use batch mode and avoid prompts
+        mkdir -p ~/.gnupg
+        echo "batch" > ~/.gnupg/gpg.conf
+        echo "no-tty" >> ~/.gnupg/gpg.conf
+        echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+
+        # Make sure permissions are correct for GPG
+        chmod 700 ~/.gnupg
+        chmod 600 ~/.gnupg/*
+
+        # Create test GPG key
         cat > key_config <<EOF
         %echo Generating a basic OpenPGP key for testing
         Key-Type: RSA
@@ -81,18 +92,18 @@ jobs:
         mkdir -p ~/.password-store/web/{social,banking}
 
         # Get GPG key ID for CI Test
-        gpg_key_id=$(gpg --list-keys --with-colons "CI Test" | grep "^pub" | cut -d: -f5)
+        gpg_key_id=$(gpg --batch --list-keys --with-colons "CI Test" | grep "^pub" | cut -d: -f5)
         echo "Using GPG key ID: $gpg_key_id for encryption"
 
-        # Create sample password files - use --trust-model always to avoid trust issues
-        echo "password123" | gpg --trust-model always --recipient "CI Test" --encrypt -o ~/.password-store/test/example.gpg
-        echo "email-password" | gpg --trust-model always --recipient "CI Test" --encrypt -o ~/.password-store/email/gmail.gpg
-        echo "twitter-pass" | gpg --trust-model always --recipient "CI Test" --encrypt -o ~/.password-store/web/social/twitter.gpg
-        echo "bank-pass" | gpg --trust-model always --recipient "CI Test" --encrypt -o ~/.password-store/web/banking/chase.gpg
+        # Create sample password files - using batch mode and trust-model always
+        echo "password123" | gpg --batch --yes --trust-model always --recipient "CI Test" --encrypt -o ~/.password-store/test/example.gpg
+        echo "email-password" | gpg --batch --yes --trust-model always --recipient "CI Test" --encrypt -o ~/.password-store/email/gmail.gpg
+        echo "twitter-pass" | gpg --batch --yes --trust-model always --recipient "CI Test" --encrypt -o ~/.password-store/web/social/twitter.gpg
+        echo "bank-pass" | gpg --batch --yes --trust-model always --recipient "CI Test" --encrypt -o ~/.password-store/web/banking/chase.gpg
 
         # Test decryption directly to verify encryption worked
         echo "Testing direct decryption of a file:"
-        gpg --batch --decrypt ~/.password-store/test/example.gpg || echo "Decryption test failed"
+        gpg --batch --yes --decrypt ~/.password-store/test/example.gpg || echo "Decryption test failed"
 
         # Add metadata to some files (unencrypted for test verification)
         echo "email-password" > ~/.password-store/email/gmail.txt
@@ -121,17 +132,21 @@ jobs:
         # Create directory for pwstore and set correct permissions
         fish -c "mkdir -p ~/.config/fish/secure"
 
+        # Configure Fish environment for non-interactive GPG
+        fish -c "set -Ux GPG_BATCH yes"
+        fish -c "set -Ux PINENTRY_USER_DATA loopback"
+
         # Configure pwstore to use the CI Test GPG key
         # Using name directly as recommended
         fish -c "set -Ux pwstore_gpg_recipient 'CI Test'"
         fish -c "set -Ux pwstore_path ~/.config/fish/secure/passwords"
 
+        # Add GPG batch flags to pwstore if they're used
+        fish -c "set -Ux pwstore_gpg_batch_flags --batch --yes --no-tty"
+
         # Debug the environment
         echo "==== GPG Keys ===="
-        gpg --list-keys
-
-        # Export GPG_TTY for better GPG interaction
-        export GPG_TTY=$(tty)
+        gpg --batch --list-keys
 
         # Initialize the password store directory
         fish -c "pw init"
@@ -188,21 +203,30 @@ jobs:
 
     - name: Test pass import functionality
       run: |
-        # Export GPG_TTY to avoid "Inappropriate ioctl for device" errors with GPG
-        export GPG_TTY=$(tty)
+        # No need to export GPG_TTY as we're running in batch mode
+        # and have configured GPG to avoid interactive prompting
 
         # Check GPG agent status without attempting to start a new one
         echo "==== GPG Agent Status ===="
         ps -ef | grep gpg-agent | grep -v grep || echo "No gpg-agent process found"
+
+        # Ensure GPG is properly set up for non-interactive use
+        echo "==== Ensuring non-interactive GPG setup ===="
+        mkdir -p ~/.gnupg
+        grep -q "batch" ~/.gnupg/gpg.conf || echo "batch" >> ~/.gnupg/gpg.conf
+        grep -q "no-tty" ~/.gnupg/gpg.conf || echo "no-tty" >> ~/.gnupg/gpg.conf
+        grep -q "pinentry-mode loopback" ~/.gnupg/gpg.conf || echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+        chmod 700 ~/.gnupg
+        chmod 600 ~/.gnupg/*
 
         # Debug GPG keys and trust
         echo "==== GPG Keys ===="
         gpg --list-keys
         gpg --list-secret-keys
 
-        # Verify we can decrypt files directly
+        # Verify we can decrypt files directly using --batch mode
         echo "==== Testing direct GPG decryption ===="
-        gpg --decrypt ~/.password-store/test/example.gpg || echo "Direct decryption failed"
+        gpg --batch --yes --decrypt ~/.password-store/test/example.gpg || echo "Direct decryption failed"
 
         # Make sure we're still using the right GPG recipient
         fish -c "set -U pwstore_gpg_recipient 'CI Test'"
@@ -210,8 +234,8 @@ jobs:
         # Check pwstore environment
         fish -c "echo \"Using pwstore_gpg_recipient: \$pwstore_gpg_recipient\""
 
-        # Import from pass store with verbose flag for debugging
-        fish -c "set -x CI true; pw import-pass ~/.password-store --verbose"
+        # Import from pass store with verbose flag and no-confirm flag for CI
+        fish -c "set -x CI true; pw import-pass ~/.password-store --verbose --no-confirm"
 
         # List all entries and show some imported passwords
         fish -c "set -x CI true; pw ls"

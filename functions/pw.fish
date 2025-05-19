@@ -17,7 +17,7 @@ function pw
         echo "  rm NAME                     - Delete a password"
         echo "  export PATH                 - Export passwords to a file"
         echo "  import PATH                 - Import passwords from a file"
-        echo "  import-pass [DIR] [--verbose] - Import passwords from standard pass"
+        echo "  import-pass [DIR] [--verbose] [--no-confirm] - Import passwords from standard pass"
         # Remove the obsolete import-pass-verbose command
         echo "  migrate                     - Migrate passwords from old location"
         echo "  version, --version, -v      - Show pwstore version"
@@ -119,19 +119,28 @@ function pw
             echo "fish-pwstore v1.5.3"
 
         case import-pass
-            # Check if --verbose flag is present in arguments
-            if contains -- --verbose $args
-                # Remove --verbose from args to avoid passing it twice
-                set -l filtered_args
-                for arg in $args
-                    if test "$arg" != --verbose
-                        set filtered_args $filtered_args $arg
-                    end
+            # Process flags that need special handling
+            set -l verbose_flag false
+            set -l no_confirm_flag false
+            set -l filtered_args
+
+            for arg in $args
+                if test "$arg" = --verbose
+                    set verbose_flag true
+                else if test "$arg" = --no-confirm
+                    set no_confirm_flag true
+                else
+                    set filtered_args $filtered_args $arg
                 end
-                _pwstore_import_from_pass $filtered_args --verbose
-            else
-                _pwstore_import_from_pass $args
             end
+
+            # Build the command with the appropriate flags
+            set -l cmd_args $filtered_args
+            test "$verbose_flag" = true; and set cmd_args $cmd_args --verbose
+            test "$no_confirm_flag" = true; and set cmd_args $cmd_args --no-confirm
+
+            # Pass all arguments to the internal function
+            _pwstore_import_from_pass $cmd_args
 
         case "*"
             echo "Unknown command: $command"

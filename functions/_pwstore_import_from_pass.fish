@@ -1,6 +1,6 @@
 # Internal function to import passwords from the standard pass password manager utility
 # This function imports passwords, usernames, URLs, and descriptions from a pass password store
-# Usage: _pwstore_import_from_pass [PASS_DIRECTORY] [--verbose]
+# Usage: _pwstore_import_from_pass [PASS_DIRECTORY] [--verbose] [--no-confirm]
 function _pwstore_import_from_pass
     # Check if PASSWORD_STORE_DIR is set, otherwise use default
     # Define pass_dir as a local variable with the -l flag, but assign it outside the if block
@@ -12,6 +12,7 @@ function _pwstore_import_from_pass
         set pass_dir $HOME/.password-store
     end
     set -l verbose false
+    set -l no_confirm false
 
     # Parse arguments
     set -l args_to_process $argv
@@ -21,6 +22,9 @@ function _pwstore_import_from_pass
 
         if test "$arg" = --verbose
             set verbose true
+            set -e args_to_process[$i]
+        else if test "$arg" = --no-confirm
+            set no_confirm true
             set -e args_to_process[$i]
         else if test -d "$arg"
             set pass_dir "$arg"
@@ -62,11 +66,18 @@ function _pwstore_import_from_pass
         find $pass_dir -name "*.gpg" -not -path "*/\.*" | sort
     end
 
-    read -l -P "Proceed with import? [y/N] " confirm
+    # Skip confirmation if --no-confirm was specified or if we're in CI environment
+    if test "$no_confirm" = true; or test "$CI" = true
+        if test "$verbose" = true
+            echo "Skipping confirmation prompt (--no-confirm or CI=true)"
+        end
+    else
+        read -l -P "Proceed with import? [y/N] " confirm
 
-    if not string match -qi y $confirm
-        echo "Import cancelled."
-        return 0
+        if not string match -qi y $confirm
+            echo "Import cancelled."
+            return 0
+        end
     end
 
     # Initialize counter
@@ -210,14 +221,14 @@ function _pwstore_import_from_pass
                 end
 
                 # Try to decrypt with the configured recipient first
-                set password_data (gpg --trust-model always --decrypt $file 2>/dev/null | string split '\n')
+                set password_data (gpg --batch --yes --trust-model always --decrypt $file 2>/dev/null | string split '\n')
 
                 # If that fails and we're in CI, try with explicit CI Test
                 if test $status -ne 0; and test "$CI" = true
                     if test "$verbose" = true
                         echo "  Debug: First attempt failed, trying with CI Test explicitly"
                     end
-                    set password_data (gpg --trust-model always --decrypt --try-secret-key "CI Test" $file 2>/dev/null | string split '\n')
+                    set password_data (gpg --batch --yes --trust-model always --decrypt --try-secret-key "CI Test" $file 2>/dev/null | string split '\n')
                 end
 
                 # If that still fails, try standard decryption
@@ -225,11 +236,11 @@ function _pwstore_import_from_pass
                     if test "$verbose" = true
                         echo "  Debug: Explicit recipient failed, trying standard decryption"
                     end
-                    set password_data (gpg --decrypt $file 2>/dev/null | string split '\n')
+                    set password_data (gpg --batch --yes --decrypt $file 2>/dev/null | string split '\n')
                 end
             else
                 # Standard decryption when no recipient is configured
-                set password_data (gpg --decrypt $file 2>/dev/null | string split '\n')
+                set password_data (gpg --batch --yes --decrypt $file 2>/dev/null | string split '\n')
             end
         end
 
