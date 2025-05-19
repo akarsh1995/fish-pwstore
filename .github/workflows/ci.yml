@@ -65,10 +65,10 @@ jobs:
         echo "no-tty" >> ~/.gnupg/gpg.conf
         echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
         echo "trust-model always" >> ~/.gnupg/gpg.conf
-        
+
         # Create gpg-agent.conf with appropriate settings
         echo "allow-loopback-pinentry" > ~/.gnupg/gpg-agent.conf
-        
+
         # Set permissions for GPG directory and files
         chmod 700 ~/.gnupg
         # Apply permissions to existing files
@@ -103,12 +103,12 @@ jobs:
         # Set ultimate trust for the key
         echo "Setting ultimate trust for the key:"
         echo -e "5\ny\n" | gpg --batch --command-fd 0 --expert --edit-key "CI Test" trust
-        
+
         # Set default key short key ID format (last 8 characters of the fingerprint)
         SHORT_KEY_ID=$(echo $KEY_FP | tail -c 9)
         echo "Using short key ID: $SHORT_KEY_ID"
         echo "default-key $SHORT_KEY_ID" >> ~/.gnupg/gpg.conf
-        
+
         # Verify key and configuration
         echo "GPG Key List:"
         gpg --list-keys
@@ -187,6 +187,21 @@ jobs:
         # Try decryption with the specific key
         echo "Testing decryption with specific key:"
         gpg --batch --yes --trust-model always --recipient "$KEY_FP" --decrypt ~/.password-store/test/example.gpg || echo "Specific key decryption failed"
+
+        # Create a special test entry that's guaranteed to be decryptable with our key
+        echo "Creating special guaranteed-decryptable test file for pass import:"
+        mkdir -p ~/.password-store/ci-test
+        echo -n "CI-TEST-PASSWORD" > /tmp/ci-test-password.txt
+        echo "username: ci-test-user@example.com" >> /tmp/ci-test-password.txt
+        echo "url: https://ci-example.com" >> /tmp/ci-test-password.txt
+        echo "description: CI test entry created with guaranteed encryption" >> /tmp/ci-test-password.txt
+
+        # Encrypt with our key using plain gpg
+        cat /tmp/ci-test-password.txt | gpg --batch --yes --trust-model always --recipient "$KEY_FP" -e -o ~/.password-store/ci-test/guaranteed.gpg
+
+        # Verify we can decrypt it
+        echo "Verifying the guaranteed test file decryption:"
+        gpg --batch --yes --trust-model always --decrypt ~/.password-store/ci-test/guaranteed.gpg
 
         # Show permissions and file info
         echo "Password store permissions:"
@@ -270,6 +285,18 @@ jobs:
         export GPG_TTY=$(tty)
         fish -c "set -x CI true; cd $GITHUB_WORKSPACE && ./tests/run_tests.fish"
 
+    - name: Run pass import integration tests
+      run: |
+        export GPG_TTY=$(tty)
+
+        # Run standard pass import test
+        echo "Running the dedicated pass import integration test"
+        fish -c "set -x CI true; set -x DEBUG true; cd $GITHUB_WORKSPACE && ./tests/test_pass_import_integration.fish"
+
+        # Run CI-specific pass import test
+        echo "Running CI-specific pass import test"
+        fish -c "set -x CI true; set -x DEBUG true; set -x DEBUG_GPG true; cd $GITHUB_WORKSPACE && ./tests/test_ci_pass_import.fish"
+
     - name: Test basic pw functionality
       run: |
         # Export GPG_TTY to avoid "Inappropriate ioctl for device" errors with GPG
@@ -346,13 +373,31 @@ jobs:
         echo "==== Testing direct password creation/retrieval ===="
         fish -c "pw show direct/test"
 
-        echo "==== Skipping problematic pass import ===="
-        # Since we've now verified gpg works correctly for files we create directly,
-        # and the original pass store files may be using a different encryption scheme,
-        # we'll skip the import test but continue with our direct tests
+        echo "==== Testing password import from pass ===="
+        # Test the pass import functionality with --no-confirm flag
+        export PASSWORD_STORE_DIR=~/.password-store
 
-        # Try a direct approach for CI environments that bypasses the pass format
-        echo "==== Direct CI password import ===="
+        # Verify pass directory before import
+        echo "Pass directory contents:"
+        find ~/.password-store -type f | sort
+
+        # Check if pass can read the passwords itself
+        echo "Testing if pass can read one of the passwords:"
+        pass --version || echo "Pass not available"
+
+        # Try to run the actual import with the no-confirm flag
+        echo "Running import with --no-confirm flag..."
+        fish -c "set -x CI true; set -x DEBUG true; set -x DEBUG_GPG true; pw import-pass --no-confirm --verbose"
+
+        # Check the status of the import
+        if [ $? -eq 0 ]; then
+          echo "Import command completed successfully"
+        else
+          echo "Import command returned non-zero exit code"
+        fi
+
+        # Also run a direct test as a fallback to make sure other functionality works
+        echo "==== Direct CI password import (fallback test) ===="
         # Create test passwords directly with pw add to verify it works
         fish -c "set -x CI true; pw add ci/direct_test --no-prompt 'test123' --username=directuser@example.com --url=https://example.com 'Direct test entry'"
 
