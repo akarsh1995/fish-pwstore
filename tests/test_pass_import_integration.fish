@@ -25,7 +25,7 @@ pass show
 
 # Test the pass import functionality with --no-confirm flag
 echo "Running import with --no-confirm flag..."
-set -x DEBUG true 
+set -x DEBUG true
 pw import-pass --no-confirm --verbose
 
 # check pw show contains the test entry
