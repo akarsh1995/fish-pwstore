@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.5.4 - 2025-05-19
+
+### Fixed
+- Enhanced path resolution with robust cross-platform support
+- Fixed `grealpath` command not found errors in CI environments
+- Created centralized path handling utilities for consistent path resolution
+- Added multiple fallback methods for environments lacking standard commands
+- Improved edge case handling for special characters and symlinks in paths
+
+### Added
+- New `_pwstore_path_utils.fish` utility functions for consistent path handling
+- Advanced path resolution tests for complex path scenarios
+- CI-specific tests to verify path resolution in constrained environments
+
 ## v1.5.3 - 2025-05-19
 
 ### Fixed

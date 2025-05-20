@@ -23,14 +23,14 @@ echo ""
 # Run each test
 for test_file in $test_files
     set total_count (math $total_count + 1)
-    
+
     set_color --bold yellow
     echo "🔍 Running test: $test_file"
     set_color normal
-    
+
     # Run the test
     $test_file
-    
+
     # Check result
     if test $status -eq 0
         set pass_count (math $pass_count + 1)
@@ -41,9 +41,9 @@ for test_file in $test_files
         set_color red
         echo "❌ Test failed: $test_file"
     end
-    
+
     set_color normal
-    echo "----------------------------------"
+    echo ----------------------------------
     echo ""
 end
 

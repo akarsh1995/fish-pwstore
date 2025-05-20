@@ -4,7 +4,7 @@ function _pwstore_init
     if not test -d $pwstore_path
         mkdir -p $pwstore_path
     end
-    
+
     echo "Password store initialized at: $pwstore_path"
     echo ""
     echo "Available commands:"
@@ -22,6 +22,6 @@ function _pwstore_init
     echo "  pw migrate                     - Migrate passwords from old location"
     echo "  pw version                     - Show pwstore version"
     echo "  pw help                        - Show this help message"
-    
+
     return 0
 end

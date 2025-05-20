@@ -1,0 +1,145 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+    tags-ignore:
+      - v.*
+  pull_request:
+    branches: [ main, master ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: 
+         - ubuntu-latest
+         - macos-latest
+      fail-fast: false
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Fish Shell
+      uses: fish-actions/install-fish@v1
+
+    - name: Install Dependencies
+      run: |
+        if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+          sudo apt-get update
+          sudo apt-get install -y gnupg jq pass python3
+        else
+          brew install gnupg jq pass
+        fi
+        gpg --version
+        jq --version
+        python3 --version || echo "Python 3 not found"
+        echo "Pass version:"
+        pass --version || echo "Pass not found"
+
+        # Check if realpath/grealpath is available
+        if command -v realpath >/dev/null 2>&1; then
+          echo "realpath is available"
+        else
+          echo "realpath is not available"
+        fi
+        if command -v grealpath >/dev/null 2>&1; then
+          echo "grealpath is available"
+        else
+          echo "grealpath is not available"
+        fi
+
+    - name: Set up GPG key for testing
+      run: |
+        cat > gpg_key_details.txt <<EOF
+        Key-Type: RSA
+        Key-Length: 2048
+        Subkey-Type: RSA
+        Subkey-Length: 2048
+        Name-Real: CI Test
+        Name-Email: test@example.com
+        Expire-Date: 0
+        %no-protection
+        %commit
+        EOF
+        gpg --batch --gen-key gpg_key_details.txt
+
+    - name: Install Fisher and fish-pwstore
+      run: |
+        fish -c "curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install $GITHUB_WORKSPACE"
+
+    - name: Run all tests
+      run: |
+
+        echo "Changing to the repository directory"
+        cd $GITHUB_WORKSPACE
+
+        echo "Making all tests executable"
+        chmod +x tests/*.fish
+
+        echo "Running all tests"
+        fish -c 'set -gx pwstore_gpg_recipient "CI Test";set -gx CI true;./tests/run_tests.fish'
+
+
+  syntax-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: fish-actions/install-fish@v1
+      - uses: fish-actions/syntax-check@v1
+
+  format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: fish-actions/install-fish@v1
+      - name: Check formatting manually
+        run: |
+          echo "Checking all Fish files for proper formatting..."
+          find_result=0
+          for file in $(find . -name "*.fish" -type f); do
+            if ! fish_indent -c "$file"; then
+              echo "::error file=$file::$file is not properly formatted"
+              find_result=1
+            fi
+          done
+
+          if [ $find_result -eq 1 ]; then
+            echo "::error::Some files are not properly formatted. Run 'fish_indent -w' on them."
+            exit 1
+          else
+            echo "All files are properly formatted!"
+          fi
+      - uses: fish-actions/format-check@v1
+
+  auto-format:
+    runs-on: ubuntu-latest
+    needs: [format-check]
+    # Only run this job if format-check fails
+    if: ${{ github.event_name == 'pull_request' && failure() && needs.format-check.result == 'failure' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          # Using the default GITHUB_TOKEN with write permissions
+      - uses: fish-actions/install-fish@v1
+      - name: Format Fish files
+        run: |
+          echo "Formatting Fish files in the repository"
+          find . -name "*.fish" -type f -exec fish_indent -w {} \;
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "style: auto-format Fish files"
+          commit_user_name: "GitHub Actions"
+          commit_user_email: "actions@github.com"
+          commit_author: "GitHub Actions <actions@github.com>"

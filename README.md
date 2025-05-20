@@ -82,12 +82,12 @@ pw gen netflix 16 "Netflix account password"
 
 Generate a random password with username:
 ```fish
-pw gen netflix 16 --username=user@example.com "Netflix account password" 
+pw gen netflix 16 --username=user@example.com "Netflix account password"
 ```
 
 Generate a random password with username and URL:
 ```fish
-pw gen netflix 16 --username=user@example.com --url=https://netflix.com "Netflix account password" 
+pw gen netflix 16 --username=user@example.com --url=https://netflix.com "Netflix account password"
 ```
 
 Retrieve a password (copies to clipboard):
@@ -237,6 +237,39 @@ For issues with importing passwords from the standard pass password manager:
    ```fish
    pw import-pass --verbose
    ```
+
+## Development
+
+### Code Formatting
+
+All Fish files in this project are formatted using `fish_indent`. We provide several tools to make formatting easier:
+
+1. Format all Fish files in the repository:
+   ```fish
+   ./run_fish_indent.fish
+   ```
+
+2. Check formatting without making changes (useful for CI):
+   ```fish
+   ./run_fish_indent.fish --check
+   ```
+
+3. Format only git-staged files:
+   ```fish
+   ./run_fish_indent.fish --git
+   ```
+
+4. Use the pre-commit hook to automatically format files before committing:
+   ```fish
+   ln -sf (pwd)/pre-commit.fish .git/hooks/pre-commit
+   ```
+
+The CI workflow checks that all files are properly formatted. Pull requests with improperly formatted code may be automatically corrected.
+
+### Editor Support
+
+- **VS Code**: We include settings for VS Code in `.vscode/settings.json` and recommend the [fish-ide](https://marketplace.visualstudio.com/items?itemName=skyapps.fish-ide) extension.
+- **Editor Config**: An `.editorconfig` file is included to maintain consistent coding styles across different editors.
 
 ## License
 

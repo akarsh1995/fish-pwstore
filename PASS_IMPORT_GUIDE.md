@@ -19,7 +19,14 @@ pw import-pass --verbose
 
 fish-pwstore supports importing passwords from nested directories in pass. The hierarchical structure is preserved during import.
 
-The import process uses `realpath` (or `grealpath` as a fallback) to reliably determine the relative path between your password files and the pass directory, ensuring correct path resolution regardless of your directory structure or symbolic links. Special characters in paths are properly handled using regex escaping to prevent errors during path manipulation.
+The import process uses multiple fallback methods for path resolution to ensure cross-platform compatibility:
+
+1. First tries `realpath` (common on Linux systems)
+2. Then tries `grealpath` (GNU coreutils on macOS)
+3. Falls back to Python's `os.path.abspath` if available
+4. Uses built-in Fish shell capabilities as a last resort
+
+This robust approach ensures correct path resolution across different operating systems, even in environments with limited command availability like CI systems. Special characters in paths are properly handled using regex escaping to prevent errors during path manipulation.
 
 For example, if you have passwords stored in pass as:
 ```
@@ -49,6 +56,21 @@ If no passwords were imported:
 
 - Check if your pass directory contains .gpg files
 - Ensure the path to your pass directory is correct
+
+### 3. Path resolution issues
+
+If you encounter path resolution problems:
+
+- Try using the `--verbose` flag to see how paths are being resolved
+- Ensure you have at least one of the supported path resolution methods available:
+  - `realpath` or `grealpath` commands
+  - Python (either version 2 or 3)
+  - The `readlink -f` command
+
+On macOS, you can install GNU coreutils (which includes `grealpath`) with:
+```
+brew install coreutils
+```
 - Try specifying the full path: `pw import-pass /full/path/to/password-store`
 
 ### 3. Path issues with nested directories
