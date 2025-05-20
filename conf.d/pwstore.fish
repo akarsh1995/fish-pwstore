@@ -6,7 +6,6 @@ if not status is-interactive && test "$CI" != true
     exit
 end
 
-
 # if no XDG_CONFIG_HOME is set, use ~/.config
 if not set -q XDG_CONFIG_HOME
     set -gx XDG_CONFIG_HOME $HOME/.config

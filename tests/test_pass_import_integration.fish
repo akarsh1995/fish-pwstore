@@ -16,7 +16,6 @@ echo -e "password123\nuser:username\nurl:https://google.com" | pass insert -m te
 echo "Password store structure:"
 find ~/.password-store -type f | sort
 
-
 # Check if pass can read the passwords itself
 echo "Testing if pass can read one of the passwords:"
 pass --version || echo "Pass not available"
