@@ -6,29 +6,29 @@ if not status is-interactive && test "$CI" != true
     exit
 end
 
+
+# if no XDG_CONFIG_HOME is set, use ~/.config
+if not set -q XDG_CONFIG_HOME
+    set -gx XDG_CONFIG_HOME $HOME/.config
+end
+
 # Set default configuration variables (can be overridden by user)
 set -q pwstore_path || set -g pwstore_path $XDG_CONFIG_HOME/fish/secure/passwords
 set -q pwstore_password_length || set -g pwstore_password_length 20
 
 # Default GPG recipient (uses current user if not set)
 if not set -q pwstore_gpg_recipient
-    # Check for CI environment first
-    if test "$CI" = true; and gpg --list-keys "CI Test" >/dev/null 2>&1
-        # Use CI Test key if we're in a CI environment and it exists
-        set -g pwstore_gpg_recipient "CI Test"
-    else
-        # Try to get a valid GPG key
-        set -l first_key (gpg --list-keys --with-colons 2>/dev/null | grep '^pub:' | head -n 1 | cut -d: -f5)
+    # Try to get a valid GPG key
+    set -l first_key (gpg --list-keys --with-colons 2>/dev/null | grep '^pub:' | head -n 1 | cut -d: -f5)
 
-        if test -n "$first_key"
-            # Use first available key if we found one
-            set -g pwstore_gpg_recipient $first_key
-        else
-            # Fallback to user email format
-            set -l current_user (whoami)
-            set -l current_host (hostname)
-            set -g pwstore_gpg_recipient "$current_user <$current_user@$current_host>"
-        end
+    if test -n "$first_key"
+        # Use first available key if we found one
+        set -g pwstore_gpg_recipient $first_key
+    else
+        # Fallback to user email format
+        set -l current_user (whoami)
+        set -l current_host (hostname)
+        set -g pwstore_gpg_recipient "$current_user <$current_user@$current_host>"
     end
 end
 

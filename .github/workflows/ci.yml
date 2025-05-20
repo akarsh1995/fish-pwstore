@@ -21,7 +21,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: 
+         - ubuntu-latest
+         - macos-latest
       fail-fast: false
 
     steps:
@@ -58,352 +60,35 @@ jobs:
 
     - name: Set up GPG key for testing
       run: |
-        # Create test GPG key for CI environment
-        # Configure GPG to use batch mode and avoid prompts
-        mkdir -p ~/.gnupg
-        echo "batch" > ~/.gnupg/gpg.conf
-        echo "no-tty" >> ~/.gnupg/gpg.conf
-        echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
-        echo "trust-model always" >> ~/.gnupg/gpg.conf
-
-        # Create gpg-agent.conf with appropriate settings
-        echo "allow-loopback-pinentry" > ~/.gnupg/gpg-agent.conf
-
-        # Set permissions for GPG directory and files
-        chmod 700 ~/.gnupg
-        # Apply permissions to existing files
-        find ~/.gnupg -type f -exec chmod 600 {} \;
-        find ~/.gnupg -type d -exec chmod 700 {} \;
-
-        # Use -v (verbose) to see what's happening during key generation
-        cat > key_config <<EOF
-        %echo Generating a basic OpenPGP key for testing
-        Key-Type: RSA
+        cat > gpg_key_details.txt <<EOF
+        Key-Type: default
         Key-Length: 2048
+        Subkey-Type: default
+        Subkey-Length: 2048
         Name-Real: CI Test
-        Name-Email: ci@example.com
+        Name-Email: test@example.com
         Expire-Date: 0
         %no-protection
-        %no-ask-passphrase
         %commit
-        %echo Done
         EOF
-
-        echo "Generating GPG key with verbose output:"
-        gpg --batch --verbose --debug-level basic --generate-key key_config
-
-        # Get the key fingerprint for easier reference
-        KEY_FP=$(gpg --list-keys --with-colons "CI Test" | grep "^fpr" | head -n 1 | cut -d: -f10)
-        echo "Generated key fingerprint: $KEY_FP"
-
-        # Export the key pair for debugging (redacting secret key part)
-        echo "Exporting public key for verification:"
-        gpg --armor --export "CI Test"
-
-        # Set ultimate trust for the key
-        echo "Setting ultimate trust for the key:"
-        echo -e "5\ny\n" | gpg --batch --command-fd 0 --expert --edit-key "CI Test" trust
-
-        # Set default key short key ID format (last 8 characters of the fingerprint)
-        SHORT_KEY_ID=$(echo $KEY_FP | tail -c 9)
-        echo "Using short key ID: $SHORT_KEY_ID"
-        echo "default-key $SHORT_KEY_ID" >> ~/.gnupg/gpg.conf
-
-        # Verify key and configuration
-        echo "GPG Key List:"
-        gpg --list-keys
-        echo "GPG Secret Key List:"
-        gpg --list-secret-keys
-        echo "GPG Trust Database:"
-        gpg --export-ownertrust
-
-        # Check GPG configuration
-        echo "GPG Configuration:"
-        cat ~/.gnupg/gpg.conf
-
-        # Check permissions
-        echo "GPG Directory Permissions:"
-        ls -la ~/.gnupg/
-
-    - name: Create test password store for import testing
-      run: |
-        # Get key fingerprint for precise identification
-        KEY_FP=$(gpg --list-keys --with-colons "CI Test" | grep "^fpr" | head -n 1 | cut -d: -f10)
-        echo "Using key fingerprint: $KEY_FP"
-
-        # Create ~/.gnupg/gpg-agent.conf to ensure proper agent behavior
-        echo "allow-loopback-pinentry" > ~/.gnupg/gpg-agent.conf
-        chmod 600 ~/.gnupg/gpg-agent.conf
-
-        # Restart the agent to pick up changes
-        echo "Restarting gpg-agent:"
-        gpgconf --kill gpg-agent
-        gpgconf --launch gpg-agent
-
-        # Create password store directory with proper permissions
-        mkdir -p ~/.password-store
-        chmod 700 ~/.password-store
-
-        # Set environment for pass
-        export PASSWORD_STORE_DIR=~/.password-store
-        export PASSWORD_STORE_GPG_OPTS="--batch --yes --trust-model always"
-
-        # Initialize the password store with the full fingerprint
-        echo "Initializing password store with key: $KEY_FP"
-        pass init "$KEY_FP"
-
-        # Create simple test entry manually (without pass)
-        echo "Creating test entries manually with GPG..."
-        mkdir -p ~/.password-store/test
-        echo -n "password123" | gpg --batch --yes --trust-model always --recipient "$KEY_FP" -e -o ~/.password-store/test/example.gpg
-
-        # Verify the file was created
-        if [ -f ~/.password-store/test/example.gpg ]; then
-          echo "Successfully created test/example.gpg"
-          ls -la ~/.password-store/test/example.gpg
-        else
-          echo "Failed to create test/example.gpg"
-          exit 1
-        fi
-
-        # Create additional test entries
-        mkdir -p ~/.password-store/email
-        echo -n "email-password" | gpg --batch --yes --trust-model always --recipient "$KEY_FP" -e -o ~/.password-store/email/gmail.gpg
-
-        mkdir -p ~/.password-store/web/social
-        echo -n "twitter-pass" | gpg --batch --yes --trust-model always --recipient "$KEY_FP" -e -o ~/.password-store/web/social/twitter.gpg
-
-        mkdir -p ~/.password-store/web/banking
-        echo -n "bank-pass" | gpg --batch --yes --trust-model always --recipient "$KEY_FP" -e -o ~/.password-store/web/banking/chase.gpg
-
-        # Set proper permissions
-        find ~/.password-store -type d -exec chmod 700 {} \;
-        find ~/.password-store -name "*.gpg" -exec chmod 600 {} \;
-
-        # Test decryption directly
-        echo "Testing direct GPG decryption:"
-        gpg --batch --yes --trust-model always --decrypt ~/.password-store/test/example.gpg || echo "Direct GPG decryption failed"
-
-        # Try decryption with the specific key
-        echo "Testing decryption with specific key:"
-        gpg --batch --yes --trust-model always --recipient "$KEY_FP" --decrypt ~/.password-store/test/example.gpg || echo "Specific key decryption failed"
-
-        # Create a special test entry that's guaranteed to be decryptable with our key
-        echo "Creating special guaranteed-decryptable test file for pass import:"
-        mkdir -p ~/.password-store/ci-test
-        echo -n "CI-TEST-PASSWORD" > /tmp/ci-test-password.txt
-        echo "username: ci-test-user@example.com" >> /tmp/ci-test-password.txt
-        echo "url: https://ci-example.com" >> /tmp/ci-test-password.txt
-        echo "description: CI test entry created with guaranteed encryption" >> /tmp/ci-test-password.txt
-
-        # Encrypt with our key using plain gpg
-        cat /tmp/ci-test-password.txt | gpg --batch --yes --trust-model always --recipient "$KEY_FP" -e -o ~/.password-store/ci-test/guaranteed.gpg
-
-        # Verify we can decrypt it
-        echo "Verifying the guaranteed test file decryption:"
-        gpg --batch --yes --trust-model always --decrypt ~/.password-store/ci-test/guaranteed.gpg
-
-        # Show permissions and file info
-        echo "Password store permissions:"
-        ls -la ~/.password-store/test/
-        file ~/.password-store/test/example.gpg
-
-        # Add unencrypted metadata files for testing (duplicated on purpose for clarity)
-        echo "email-password" > ~/.password-store/email/gmail.txt
-        echo "username: test@gmail.com" >> ~/.password-store/email/gmail.txt
-        echo "url: https://gmail.com" >> ~/.password-store/email/gmail.txt
-
-        echo "twitter-pass" > ~/.password-store/web/social/twitter.txt
-        echo "username: @testuser" >> ~/.password-store/web/social/twitter.txt
-        echo "url: https://twitter.com" >> ~/.password-store/web/social/twitter.txt
-
-        # Verify structure
-        echo "Password store structure:"
-        find ~/.password-store -type f | sort
+        gpg --batch --gen-key gpg_key_details.txt
 
     - name: Install Fisher and fish-pwstore
       run: |
         fish -c "curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install $GITHUB_WORKSPACE"
 
-    - name: Make test scripts executable
-      run: |
-        echo "Making all test scripts executable"
-        chmod +x $GITHUB_WORKSPACE/tests/*.fish
-        ls -la $GITHUB_WORKSPACE/tests/*.fish  # Verify permissions
-
-    - name: Setup password store configuration
-      run: |
-        # Create directory for pwstore and set correct permissions
-        fish -c "mkdir -p ~/.config/fish/secure"
-
-        # Configure Fish environment for non-interactive GPG
-        fish -c "set -Ux GPG_BATCH yes"
-        fish -c "set -Ux PINENTRY_USER_DATA loopback"
-
-        # Configure pwstore to use the CI Test GPG key
-        # Using name directly as recommended
-        fish -c "set -Ux pwstore_gpg_recipient 'CI Test'"
-        fish -c "set -Ux pwstore_path ~/.config/fish/secure/passwords"
-
-        # Add GPG batch flags to pwstore if they're used
-        fish -c "set -Ux pwstore_gpg_batch_flags --batch --yes --no-tty"
-
-        # Debug the environment
-        echo "==== GPG Keys ===="
-        gpg --batch --list-keys
-
-        # Initialize the password store directory
-        fish -c "pw init"
-
-    - name: Test GPG Environment
-      run: |
-        # Export GPG_TTY to avoid "Inappropriate ioctl for device" errors with GPG
-        export GPG_TTY=$(tty)
-
-        # Run the GPG environment test script
-        fish -c "set -x CI true; cd $GITHUB_WORKSPACE && ./tests/test_gpg_env.fish"
-
-    - name: Check path resolution commands
-      run: |
-        echo "Checking available path resolution commands in CI environment"
-        echo "* realpath: $(which realpath 2>/dev/null || echo 'not available')"
-        echo "* grealpath: $(which grealpath 2>/dev/null || echo 'not available')"
-        echo "* python3: $(which python3 2>/dev/null || echo 'not available')"
-        echo "* python: $(which python 2>/dev/null || echo 'not available')"
-        echo "* readlink: $(which readlink 2>/dev/null || echo 'not available')"
-
-    - name: Run path resolution tests first
-      run: |
-        export GPG_TTY=$(tty)
-        echo "Testing path resolution methods first to ensure they work in CI environment"
-        fish -c "set -x CI true; set -x DEBUG true; cd $GITHUB_WORKSPACE && ./tests/test_path_resolution.fish"
-        fish -c "set -x CI true; set -x DEBUG true; cd $GITHUB_WORKSPACE && ./tests/test_ci_path_fallbacks.fish"
-        fish -c "set -x CI true; set -x DEBUG true; cd $GITHUB_WORKSPACE && ./tests/test_advanced_path_resolution.fish"
-
     - name: Run all tests
       run: |
-        export GPG_TTY=$(tty)
-        fish -c "set -x CI true; cd $GITHUB_WORKSPACE && ./tests/run_tests.fish"
 
-    - name: Run pass import integration tests
-      run: |
-        export GPG_TTY=$(tty)
+        echo "Changing to the repository directory"
+        cd $GITHUB_WORKSPACE
 
-        # Run standard pass import test
-        echo "Running the dedicated pass import integration test"
-        fish -c "set -x CI true; set -x DEBUG true; cd $GITHUB_WORKSPACE && ./tests/test_pass_import_integration.fish"
+        echo "Making all tests executable"
+        chmod +x tests/*.fish
 
-        # Run CI-specific pass import test
-        echo "Running CI-specific pass import test"
-        fish -c "set -x CI true; set -x DEBUG true; set -x DEBUG_GPG true; cd $GITHUB_WORKSPACE && ./tests/test_ci_pass_import.fish"
+        echo "Running all tests"
+        fish -c 'set -gx pwstore_gpg_recipient "CI Test";set -gx CI true;./tests/run_tests.fish'
 
-    - name: Test basic pw functionality
-      run: |
-        # Export GPG_TTY to avoid "Inappropriate ioctl for device" errors with GPG
-        export GPG_TTY=$(tty)
-
-        # Print current environment for debugging
-        echo "==== PWStore Environment ===="
-        fish -c "echo \"PWStore path: \$pwstore_path\""
-        fish -c "echo \"PWStore GPG recipient: \$pwstore_gpg_recipient\""
-
-        # Test version commands
-        fish -c "set -x CI true; pw version"
-        fish -c "set -x CI true; pw --version"
-        fish -c "set -x CI true; pw help"
-
-        # Now test password operations using --no-prompt flag
-        fish -c "set -x CI true; pw add test_password --no-prompt \"test-password\" --username=user@example.com --url=https://example.com \"Test password from CI\""
-        fish -c "set -x CI true; pw ls"
-        fish -c "set -x CI true; pw show test_password"
-
-    - name: Test pass import functionality
-      run: |
-        # Get key fingerprint for precise identification
-        KEY_FP=$(gpg --list-keys --with-colons "CI Test" | grep "^fpr" | head -n 1 | cut -d: -f10)
-        echo "Using key fingerprint: $KEY_FP"
-
-        # Check GPG agent status
-        echo "==== GPG Agent Status ===="
-        ps -ef | grep gpg-agent | grep -v grep || echo "No gpg-agent process found"
-
-        # Fix any permission issues
-        echo "==== Ensuring proper permissions ===="
-        chmod 700 ~/.gnupg
-        find ~/.gnupg -type f -exec chmod 600 {} \;
-        find ~/.gnupg -type d -exec chmod 700 {} \;
-        chmod 700 ~/.password-store
-        find ~/.password-store -type d -exec chmod 700 {} \;
-        find ~/.password-store -name "*.gpg" -exec chmod 600 {} \;
-
-        # Test key access
-        echo "==== Testing key access ===="
-        gpg --batch --list-secret-keys --with-colons "CI Test"
-        gpg --fingerprint "CI Test"
-
-        # Debug file encryption details
-        echo "==== File encryption details ===="
-        for f in ~/.password-store/**/*.gpg; do
-          echo "File: $f"
-          gpg --list-packets "$f" || echo "Failed to list packets"
-          echo "----- Testing decryption with explicit key -----"
-          gpg --batch --yes --trust-model always --recipient "$KEY_FP" --decrypt "$f" || echo "Decryption failed"
-          echo "---"
-        done
-
-        # Update Fish environment with key fingerprint
-        echo "==== Updating Fish environment ===="
-        fish -c "set -U pwstore_gpg_recipient '$KEY_FP'"
-        fish -c "set -U GPG_BATCH yes"
-        fish -c "set -U DEBUG_GPG true"
-        fish -c "set -U DEBUG true"
-
-        echo "==== Setting up simpler test files ===="
-        # Create a simple test file that we know should work
-        echo "This is a test password" > /tmp/simple_test.txt
-        gpg --batch --yes --trust-model always --recipient "$KEY_FP" -e -o /tmp/simple_test.gpg /tmp/simple_test.txt
-
-        echo "==== Testing our simple file decryption ===="
-        gpg --batch --yes --trust-model always --decrypt /tmp/simple_test.gpg
-
-        echo "==== Creating a direct test password instead ===="
-        fish -c "pw add direct/test --no-prompt 'direct-test-password' --username=direct@example.com --url=https://example.com 'Direct test entry'"
-
-        # Now try to show the password we just created
-        echo "==== Testing direct password creation/retrieval ===="
-        fish -c "pw show direct/test"
-
-        echo "==== Testing password import from pass ===="
-        # Test the pass import functionality with --no-confirm flag
-        export PASSWORD_STORE_DIR=~/.password-store
-
-        # Verify pass directory before import
-        echo "Pass directory contents:"
-        find ~/.password-store -type f | sort
-
-        # Check if pass can read the passwords itself
-        echo "Testing if pass can read one of the passwords:"
-        pass --version || echo "Pass not available"
-
-        # Try to run the actual import with the no-confirm flag
-        echo "Running import with --no-confirm flag..."
-        fish -c "set -x CI true; set -x DEBUG true; set -x DEBUG_GPG true; pw import-pass --no-confirm --verbose"
-
-        # Check the status of the import
-        if [ $? -eq 0 ]; then
-          echo "Import command completed successfully"
-        else
-          echo "Import command returned non-zero exit code"
-        fi
-
-        # Also run a direct test as a fallback to make sure other functionality works
-        echo "==== Direct CI password import (fallback test) ===="
-        # Create test passwords directly with pw add to verify it works
-        fish -c "set -x CI true; pw add ci/direct_test --no-prompt 'test123' --username=directuser@example.com --url=https://example.com 'Direct test entry'"
-
-        # List all entries and show some imported passwords
-        fish -c "set -x CI true; pw ls"
-        fish -c "set -x CI true; pw show ci/direct_test"
 
   syntax-check:
     runs-on: ubuntu-latest

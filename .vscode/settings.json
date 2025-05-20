@@ -1,20 +1,20 @@
-{
-	"editor.formatOnSave": true,
-	"files.associations": {
-		"*.fish": "fish"
-	},
-	"files.insertFinalNewline": true,
-	"files.trimTrailingWhitespace": true,
-	"[fish]": {
-		"editor.defaultFormatter": null,
-		"editor.formatOnSave": false
-	},
-	"emeraldwalk.runonsave": {
-		"commands": [
-			{
-				"match": "\\.fish$",
-				"cmd": "fish_indent -w ${file}"
-			}
-		]
-	}
-}
+// {
+// 	"editor.formatOnSave": true,
+// 	"files.associations": {
+// 		"*.fish": "fish"
+// 	},
+// 	"files.insertFinalNewline": true,
+// 	"files.trimTrailingWhitespace": true,
+// 	// "[fish]": {
+// 	// 	"editor.defaultFormatter": null,
+// 	// 	"editor.formatOnSave": false
+// 	// },
+// 	"emeraldwalk.runonsave": {
+// 		"commands": [
+// 			{
+// 				"match": "\\.fish$",
+// 				"cmd": "fish_indent -w ${file}"
+// 			}
+// 		]
+// 	}
+// }
