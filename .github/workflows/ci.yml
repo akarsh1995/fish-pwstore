@@ -61,9 +61,9 @@ jobs:
     - name: Set up GPG key for testing
       run: |
         cat > gpg_key_details.txt <<EOF
-        Key-Type: default
+        Key-Type: RSA
         Key-Length: 2048
-        Subkey-Type: default
+        Subkey-Type: RSA
         Subkey-Length: 2048
         Name-Real: CI Test
         Name-Email: test@example.com
