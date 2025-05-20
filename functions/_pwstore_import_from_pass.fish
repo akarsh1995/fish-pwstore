@@ -157,7 +157,16 @@ function _pwstore_import_from_pass
     end
 
     # Find all .gpg files
+    set -l total_files (find $pass_dir -name "*.gpg" | wc -l | string trim)
+    set -l current_file_num 0
+    
     for file in (find $pass_dir -name "*.gpg")
+        set current_file_num (math $current_file_num + 1)
+        
+        echo "════════════════════════════════════════════════════════════════════════════"
+        echo "IMPORT [$current_file_num/$total_files]: STARTING"
+        echo "════════════════════════════════════════════════════════════════════════════"
+        
         # Get absolute paths for both the pass directory and the file using our utility function
         set -l real_pass_dir (_pwstore_resolve_path "$pass_dir")
         set -l real_file (_pwstore_resolve_path "$file")
@@ -178,7 +187,7 @@ function _pwstore_import_from_pass
         # Keep the original hierarchy with slashes
         # No need to replace slashes with dots
 
-        echo "Importing: $name"
+        echo "Importing [$current_file_num/$total_files]: $name"
 
         # For 'pass show', we need the path relative to the pass directory without .gpg extension
         set -l pass_name (string replace -r "\.gpg\$" "" $rel_path)
@@ -341,7 +350,13 @@ function _pwstore_import_from_pass
             end
             set failed (math $failed + 1)
         end
+        
+        echo "────────────────────────────────────────────────────────────────────────────"
+        echo "IMPORT [$current_file_num/$total_files]: COMPLETED"
+        echo "────────────────────────────────────────────────────────────────────────────"
     end
     # Move this outside the loop to report cumulative count once at the end
-    echo "Import complete: $imported passwords imported, $failed failed"
+    echo "════════════════════════════════════════════════════════════════════════════"
+    echo "IMPORT SUMMARY: $imported passwords imported, $failed failed"
+    echo "════════════════════════════════════════════════════════════════════════════"
 end
